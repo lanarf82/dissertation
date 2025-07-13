@@ -1,0 +1,78 @@
+from pygooglenews import GoogleNews
+import pandas as pd
+import os
+from tqdm import tqdm
+from datetime import datetime
+from dateutil import parser
+
+# Gendered leadership terms and countries
+gender_terms = [
+    "female CEO", "female executive", "female founder", "female entrepreneur",
+    "female manager", "female business leader", "female director",
+    "woman CEO", "woman executive", "woman founder", "woman entrepreneur",
+    "woman manager", "woman business leader", "woman director",
+    "women in power", "women in the boardroom", "women in the C-suite",
+    "women-led business", "female-led company",
+    "male CEO", "male executive", "male founder", "male entrepreneur",
+    "male manager", "male business leader", "male director",
+    "man CEO", "man executive", "man founder", "man entrepreneur",
+    "man manager", "man business leader", "man director",
+    "men in power", "men in the boardroom", "men in the C-suite",
+    "male-led company", "man-led firm", "CEO", "c-suite", 
+]
+
+countries = [
+    "Russia", "Poland", "Romania", "Brazil", "Mexico", "Argentina",
+    "France", "Italy", "Spain", "China", "Japan", "South Korea",
+    "Sweden", "Denmark", "Finland", "United States", "United Kingdom", "Australia",
+    "Nigeria", "Kenya", "South Africa", "India", "Pakistan", "Bangladesh",
+    "Germany", "Netherlands", "Austria", "Saudi Arabia", "United Arab Emirates", "Egypt"
+]
+
+# Generate all gender × country combinations
+search_terms = [f"{term} {country}" for term in gender_terms for country in countries]
+
+# Add neutral terms
+search_terms += [
+    "gender bias in leadership", "gender equity in business", "diversity in leadership",
+    "leadership stereotyping", "gender diversity"
+]
+
+# Time filter
+start_date = datetime(2010, 1, 1)
+end_date = datetime(2025, 12, 31)
+
+# Scrape
+gn = GoogleNews()
+results = []
+
+for term in tqdm(search_terms, desc="Scraping search terms"):
+    query = f"{term} site:cnn.com"
+    try:
+        feed = gn.search(query)
+        for entry in feed['entries']:
+            pub_date_raw = entry.get('published', '')
+            try:
+                pub_date = parser.parse(pub_date_raw)
+                if start_date <= pub_date <= end_date:
+                    results.append({
+                        'search_term': term,
+                        'title': entry.get('title'),
+                        'link': entry.get('link'),
+                        'published': pub_date.strftime('%Y-%m-%d'),
+                        'summary': entry.get('summary')
+                    })
+            except Exception as date_error:
+                print(f"Date parse error for term '{term}': {date_error}")
+    except Exception as e:
+        print(f"Search error for term '{term}': {e}")
+
+# Export to CSV
+desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+df = pd.DataFrame(results)
+csv_path = os.path.join(desktop, "CNN_gender_articles_filtered.csv")
+df.to_csv(csv_path, index=False)
+
+print(f"\nFiltered CNN dataset saved to:\n{csv_path}")
+print(f"Total articles scraped in range: {len(df)}")
+
